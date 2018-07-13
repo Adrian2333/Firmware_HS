@@ -70,6 +70,8 @@ uint16 VEHICLE_CMD_ARM_AUTHORIZATION_REQUEST = 3001    # Request arm authorizati
 uint16 VEHICLE_CMD_PAYLOAD_PREPARE_DEPLOY = 30001	# Prepare a payload deployment in the flight plan
 uint16 VEHICLE_CMD_PAYLOAD_CONTROL_DEPLOY = 30002	# Control a pre-programmed payload deployment
 uint16 VEHICLE_CMD_PREFLIGHT_UAVCAN = 243		# UAVCAN configuration. If param 1 == 1 actuator mapping and direction assignment should be started
+uint16 VEHICLE_CMD_FLIP_START = 31001			# Start open loop flip maneuver
+uint16 VEHICLE_CMD_FLIP_RECOVER= 31002		# Terminate flip maneuver
 uint16 VEHICLE_CMD_LOGGING_START = 2510		# start streaming ULog data
 uint16 VEHICLE_CMD_LOGGING_STOP = 2511			# stop streaming ULog data
 uint16 VEHICLE_CMD_CONTROL_HIGH_LATENCY = 2600	# control starting/stopping transmitting data over the high latency link

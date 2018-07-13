@@ -454,7 +454,36 @@ PARAM_DEFINE_FLOAT(MC_ACRO_SUPEXPOY, 0.7f);
  * @increment 0.01
  * @group Multicopter Attitude Control
  */
+
 PARAM_DEFINE_FLOAT(MC_RATT_TH, 0.8f);
+
+/** 
+ * CUSTOM SECTION TO EXECUTE A FLIP MANEUVER
+ * First stage throttle boost in flip mode 
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Attitude Control
+ */
+
+PARAM_DEFINE_FLOAT(MC_FLIP_THR_INC, 0.2f);
+
+/** 
+ * CUSTOM SECTION TO EXECUTE A FLIP MANEUVER
+ * Second stage throttle reduction in flip mode 
+ *
+ * Increase this parameter to reduce altitude loss during drop
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Attitude Control
+ */
+
+PARAM_DEFINE_FLOAT(MC_FLIP_THR_RED, 0.24f);
 
 /**
  * Battery power level scaler

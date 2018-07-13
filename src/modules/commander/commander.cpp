@@ -486,6 +486,8 @@ int commander_main(int argc, char *argv[])
 				new_main_state = commander_state_s::MAIN_STATE_AUTO_LAND;
 			} else if (!strcmp(argv[2], "auto:precland")) {
 				new_main_state = commander_state_s::MAIN_STATE_AUTO_PRECLAND;
+			} else if (!strcmp(argv[2], "flip")) {
+				new_main_state = commander_state_s::MAIN_STATE_FLIP;
 			} else {
 				warnx("argument %s unsupported.", argv[2]);
 			}
@@ -2995,6 +2997,19 @@ Commander::set_main_state_rc(const vehicle_status_s &status_local, bool *changed
 	// the desired mode
 	reset_posvel_validity(changed);
 
+	/* Custom section to invoke a flip by switch: Flip switch overrides main switch*/
+	if (sp_man.flip_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
+		res = main_state_transition(status_local, commander_state_s::MAIN_STATE_FLIP, status_flags, &internal_state);
+
+		if (res == TRANSITION_DENIED) {
+			print_reject_mode("FLIP");
+
+		} else {
+			return res;
+		}
+		
+	}
+
 	/* offboard switch overrides main switch */
 	if (sp_man.offboard_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
 		res = main_state_transition(status_local, commander_state_s::MAIN_STATE_OFFBOARD, status_flags, &internal_state);
@@ -3413,6 +3428,7 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = false;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_STAB:
@@ -3427,20 +3443,37 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = false;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_RATTITUDE:
 		control_mode.flag_control_manual_enabled = true;
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
-		control_mode.flag_control_attitude_enabled = true;
-		control_mode.flag_control_rattitude_enabled = true;
+		control_mode.flag_control_attitude_enabled = false;
+		control_mode.flag_control_rattitude_enabled = false;
 		control_mode.flag_control_altitude_enabled = false;
 		control_mode.flag_control_climb_rate_enabled = false;
 		control_mode.flag_control_position_enabled = false;
 		control_mode.flag_control_velocity_enabled = false;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
+		break;
+
+	case vehicle_status_s::NAVIGATION_STATE_FLIP:
+		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_auto_enabled = false;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = false;
+		control_mode.flag_control_rattitude_enabled = false;
+		control_mode.flag_control_altitude_enabled = false;
+		control_mode.flag_control_climb_rate_enabled = false;
+		control_mode.flag_control_position_enabled = false;
+		control_mode.flag_control_velocity_enabled = false;
+		control_mode.flag_control_acceleration_enabled = false;
+		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = true;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_ALTCTL:
@@ -3455,6 +3488,7 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = false;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_POSCTL:
@@ -3469,6 +3503,7 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = !status.in_transition_mode;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_RTL:
@@ -3496,6 +3531,7 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = !status.in_transition_mode;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_LANDGPSFAIL:
@@ -3510,6 +3546,7 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = false;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_ACRO:
@@ -3524,6 +3561,7 @@ set_control_mode()
 		control_mode.flag_control_velocity_enabled = false;
 		control_mode.flag_control_acceleration_enabled = false;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_DESCEND:
@@ -3539,6 +3577,7 @@ set_control_mode()
 		control_mode.flag_control_altitude_enabled = false;
 		control_mode.flag_control_climb_rate_enabled = true;
 		control_mode.flag_control_termination_enabled = false;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_TERMINATION:
@@ -3554,6 +3593,7 @@ set_control_mode()
 		control_mode.flag_control_altitude_enabled = false;
 		control_mode.flag_control_climb_rate_enabled = false;
 		control_mode.flag_control_termination_enabled = true;
+		control_mode.flag_control_flip_enabled = false;
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_OFFBOARD:
