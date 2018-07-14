@@ -88,7 +88,6 @@ void initialize_parameter_handles(ParameterHandles &parameter_handles)
 	parameter_handles.rc_map_posctl_sw = param_find("RC_MAP_POSCTL_SW");
 	parameter_handles.rc_map_loiter_sw = param_find("RC_MAP_LOITER_SW");
 	parameter_handles.rc_map_acro_sw = param_find("RC_MAP_ACRO_SW");
-	parameter_handles.rc_map_flip_sw = param_find("RC_MAP_FLIP_SW");
 	parameter_handles.rc_map_offboard_sw = param_find("RC_MAP_OFFB_SW");
 	parameter_handles.rc_map_kill_sw = param_find("RC_MAP_KILL_SW");
 	parameter_handles.rc_map_arm_sw = param_find("RC_MAP_ARM_SW");
@@ -122,7 +121,6 @@ void initialize_parameter_handles(ParameterHandles &parameter_handles)
 	parameter_handles.rc_return_th = param_find("RC_RETURN_TH");
 	parameter_handles.rc_loiter_th = param_find("RC_LOITER_TH");
 	parameter_handles.rc_acro_th = param_find("RC_ACRO_TH");
-	parameter_handles.rc_flip_th = param_find("RC_FLIP_TH");
 	parameter_handles.rc_offboard_th = param_find("RC_OFFB_TH");
 	parameter_handles.rc_killswitch_th = param_find("RC_KILLSWITCH_TH");
 	parameter_handles.rc_armswitch_th = param_find("RC_ARMSWITCH_TH");
@@ -278,10 +276,6 @@ int update_parameters(const ParameterHandles &parameter_handles, Parameters &par
 		PX4_WARN("%s", paramerr);
 	}
 
-	if (param_get(parameter_handles.rc_map_flip_sw, &(parameters.rc_map_flip_sw)) != OK) {
-		PX4_WARN("%s", paramerr);
-	}
-
 	if (param_get(parameter_handles.rc_map_offboard_sw, &(parameters.rc_map_offboard_sw)) != OK) {
 		PX4_WARN("%s", paramerr);
 	}
@@ -348,9 +342,6 @@ int update_parameters(const ParameterHandles &parameter_handles, Parameters &par
 	param_get(parameter_handles.rc_acro_th, &(parameters.rc_acro_th));
 	parameters.rc_acro_inv = (parameters.rc_acro_th < 0);
 	parameters.rc_acro_th = fabsf(parameters.rc_acro_th);
-	param_get(parameter_handles.rc_flip_th, &(parameters.rc_flip_th));
-	parameters.rc_flip_inv = (parameters.rc_flip_th < 0);
-	parameters.rc_flip_th = fabsf(parameters.rc_flip_th);	
 	param_get(parameter_handles.rc_offboard_th, &(parameters.rc_offboard_th));
 	parameters.rc_offboard_inv = (parameters.rc_offboard_th < 0);
 	parameters.rc_offboard_th = fabsf(parameters.rc_offboard_th);
