@@ -98,7 +98,7 @@ void RCUpdate::update_rc_functions()
 	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_POSCTL] = _parameters.rc_map_posctl_sw - 1;
 	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_LOITER] = _parameters.rc_map_loiter_sw - 1;
 	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_ACRO] = _parameters.rc_map_acro_sw - 1;
-	//_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_FLIP] = _parameters.rc_map_flip_sw - 1;	// Custom section to invoke a flip by switch: Set flip switch function
+	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_FLIP] = _parameters.rc_map_flip_sw - 1;	//CUSTOM SECTION: Flip Switch
 	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_OFFBOARD] = _parameters.rc_map_offboard_sw - 1;
 	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_KILLSWITCH] = _parameters.rc_map_kill_sw - 1;
 	_rc.function[rc_channels_s::RC_CHANNELS_FUNCTION_ARMSWITCH] = _parameters.rc_map_arm_sw - 1;
@@ -427,8 +427,8 @@ RCUpdate::rc_poll(const ParameterHandles &parameter_handles)
 					       _parameters.rc_loiter_inv);
 			manual.acro_switch = get_rc_sw2pos_position(rc_channels_s::RC_CHANNELS_FUNCTION_ACRO, _parameters.rc_acro_th,
 					     _parameters.rc_acro_inv);
-//			manual.flip_switch = get_rc_sw2pos_position(rc_channels_s::RC_CHANNELS_FUNCTION_FLIP, _parameters.rc_flip_th,
-//						 _parameters.rc_flip_inv);		//Custom section to invoke a flip by switch: Set flip to a 2 position switch
+			manual.flip_switch = get_rc_sw2pos_position(rc_channels_s::RC_CHANNELS_FUNCTION_FLIP, _parameters.rc_flip_th,
+						 _parameters.rc_flip_inv);		//CUSTOM SECTION
 			manual.offboard_switch = get_rc_sw2pos_position(rc_channels_s::RC_CHANNELS_FUNCTION_OFFBOARD,
 						 _parameters.rc_offboard_th, _parameters.rc_offboard_inv);
 			manual.kill_switch = get_rc_sw2pos_position(rc_channels_s::RC_CHANNELS_FUNCTION_KILLSWITCH,
