@@ -84,6 +84,7 @@ struct Parameters {
 	int32_t rc_map_posctl_sw;
 	int32_t rc_map_loiter_sw;
 	int32_t rc_map_acro_sw;
+	int32_t rc_map_flip_sw;		//CUSTOM SECTION: Flip Switch
 	int32_t rc_map_offboard_sw;
 	int32_t rc_map_kill_sw;
 	int32_t rc_map_arm_sw;
@@ -111,6 +112,7 @@ struct Parameters {
 	float rc_return_th;
 	float rc_loiter_th;
 	float rc_acro_th;
+	float rc_flip_th;	//CUSTOM SECTION: Flip Switch
 	float rc_offboard_th;
 	float rc_killswitch_th;
 	float rc_armswitch_th;
@@ -126,6 +128,7 @@ struct Parameters {
 	bool rc_return_inv;
 	bool rc_loiter_inv;
 	bool rc_acro_inv;
+	bool rc_flip_inv;	//CUSTOM SECTION: Flip Switch
 	bool rc_offboard_inv;
 	bool rc_killswitch_inv;
 	bool rc_armswitch_inv;
@@ -175,6 +178,7 @@ struct ParameterHandles {
 	param_t rc_map_posctl_sw;
 	param_t rc_map_loiter_sw;
 	param_t rc_map_acro_sw;
+	param_t rc_map_flip_sw;		//CUSTOM SECTION: Flip Switch
 	param_t rc_map_offboard_sw;
 	param_t rc_map_kill_sw;
 	param_t rc_map_arm_sw;
@@ -206,6 +210,7 @@ struct ParameterHandles {
 	param_t rc_return_th;
 	param_t rc_loiter_th;
 	param_t rc_acro_th;
+	param_t rc_flip_th;		//CUSTOM SECTION: Flip Switch
 	param_t rc_offboard_th;
 	param_t rc_killswitch_th;
 	param_t rc_armswitch_th;
