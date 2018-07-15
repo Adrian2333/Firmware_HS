@@ -580,6 +580,55 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	}
 }
 
+// CUSTOM SECTION: Function to execute flip
+void
+MulticopterAttitudeControl::maneuver_flip()
+{
+	vehicle_attitude_poll();
+
+    static enum FLIP_STATE {
+        FLIP_START = 0,
+        FLIP_ROLL,
+        FLIP_RECOVER
+    } _flip_state;
+
+	Eulerf euler(Quatf(_v_att.q));
+	float roll = euler.phi();
+
+	_thrust_sp = _v_rates_sp.thrust;
+
+    switch (_flip_state) {
+        case FLIP_START:  
+            _rates_sp(0) = math::radians(400);
+            _rates_sp(1) = 0;
+            _rates_sp(2) = 0;
+            _thrust_sp+= _flip_thr_inc.get();
+
+            if (fabs(roll) >= 0.8f) {
+                _flip_state = FLIP_ROLL;
+            }
+        break;
+
+        // 400 degree/second roll to -90 degrees
+        case FLIP_ROLL:
+            _rates_sp(0) = math::radians(400);
+            _rates_sp(1) = 0;
+            _rates_sp(2) = 0;
+			_thrust_sp-=_flip_thr_red.get();
+
+            if (fabs(roll) <= 0.8f && fabs(roll) > -FLIP_RECOVER) {
+                _flip_state = FLIP_RECOVER;
+            }
+        break;
+                    
+        case FLIP_RECOVER:
+
+        break;
+        // run at roughly 100 hz
+        usleep(50000);
+        }
+}
+
 void
 MulticopterAttitudeControl::run()
 {
@@ -676,6 +725,22 @@ MulticopterAttitudeControl::run()
 				if (fabsf(_manual_control_sp.y) > _rattitude_thres.get() ||
 				    fabsf(_manual_control_sp.x) > _rattitude_thres.get()) {
 					_v_control_mode.flag_control_attitude_enabled = false;
+				}
+			}
+
+			/* CUSTOM SECTION: Disable attitude and rate controllers and execute the flip
+			 * maneuver function */
+			if (_v_control_mode.flag_control_flip_enabled) {
+				_v_control_mode.flag_control_attitude_enabled = false;
+				_v_control_mode.flag_control_rates_enabled = false;
+
+				maneuver_flip();
+
+				if (_v_rates_sp_pub != nullptr) {
+					orb_publish(_rates_sp_id, _v_rates_sp_pub, &_v_rates_sp);
+
+				} else if (_rates_sp_id) {
+					_v_rates_sp_pub = orb_advertise(_rates_sp_id, &_v_rates_sp);
 				}
 			}
 

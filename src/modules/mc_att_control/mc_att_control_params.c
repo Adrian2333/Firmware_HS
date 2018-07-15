@@ -454,6 +454,33 @@ PARAM_DEFINE_FLOAT(MC_ACRO_SUPEXPOY, 0.7f);
  * @increment 0.01
  * @group Multicopter Attitude Control
  */
+PARAM_DEFINE_FLOAT(MC_FLIP_THR_INC, 0.2f);
+
+/**
+ * Throttle increase in first stage of flip maneuver
+ *
+ * Increase throttle in first stage of flip maneuver to reduce loss of
+ * altitude
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Attitude Control
+*/
+PARAM_DEFINE_FLOAT(MC_FLIP_THR_RED, 0.24f);
+
+/**
+ * Throttle increase in first stage of flip maneuver
+ *
+ * Reduce throttle in second stage of flip maneuver
+ *
+ * @min 0.0
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.01
+ * @group Multicopter Attitude Control
+*/
 PARAM_DEFINE_FLOAT(MC_RATT_TH, 0.8f);
 
 /**

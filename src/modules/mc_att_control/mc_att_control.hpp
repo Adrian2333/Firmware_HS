@@ -118,6 +118,8 @@ private:
 	 */
 	void		control_attitude_rates(float dt);
 
+	void		maneuver_flip();
+
 	/**
 	 * Throttle PID attenuation.
 	 */
@@ -223,6 +225,9 @@ private:
 		(ParamFloat<px4::params::MC_ACRO_EXPO_Y>) _acro_expo_y,				/**< expo stick curve shape (yaw) */
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPO>) _acro_superexpo_rp,			/**< superexpo stick curve shape (roll & pitch) */
 		(ParamFloat<px4::params::MC_ACRO_SUPEXPOY>) _acro_superexpo_y,			/**< superexpo stick curve shape (yaw) */
+
+		(ParamFloat<px4::params::MC_FLIP_THR_INC>) _flip_thr_inc,
+		(ParamFloat<px4::params::MC_FLIP_THR_RED>) _flip_thr_red,
 
 		(ParamFloat<px4::params::MC_RATT_TH>) _rattitude_thres,
 
