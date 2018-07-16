@@ -474,6 +474,8 @@ int commander_main(int argc, char *argv[])
 				new_main_state = commander_state_s::MAIN_STATE_AUTO_RTL;
 			} else if (!strcmp(argv[2], "acro")) {
 				new_main_state = commander_state_s::MAIN_STATE_ACRO;
+			} else if (!strcmp(argv[2], "flip")) {
+				new_main_state = commander_state_s::MAIN_STATE_FLIP;
 			} else if (!strcmp(argv[2], "offboard")) {
 				new_main_state = commander_state_s::MAIN_STATE_OFFBOARD;
 			} else if (!strcmp(argv[2], "stabilized")) {
@@ -712,6 +714,10 @@ Commander::handle_command(vehicle_status_s *status_local, const vehicle_command_
 				} else if (custom_main_mode == PX4_CUSTOM_MAIN_MODE_ACRO) {
 					/* ACRO */
 					main_ret = main_state_transition(*status_local, commander_state_s::MAIN_STATE_ACRO, status_flags, &internal_state);
+
+				} else if (custom_main_mode == PX4_CUSTOM_MAIN_MODE_FLIP) { //CUSTOM SECTION: Flip Mode
+					/* FLIP */
+					main_ret = main_state_transition(*status_local, commander_state_s::MAIN_STATE_FLIP, status_flags, &internal_state);
 
 				} else if (custom_main_mode == PX4_CUSTOM_MAIN_MODE_RATTITUDE) {
 					/* RATTITUDE */
@@ -2959,6 +2965,7 @@ Commander::set_main_state_rc(const vehicle_status_s &status_local, bool *changed
 		 (_last_sp_man.return_switch == sp_man.return_switch) &&
 		 (_last_sp_man.mode_switch == sp_man.mode_switch) &&
 		 (_last_sp_man.acro_switch == sp_man.acro_switch) &&
+		 (_last_sp_man.flip_switch == sp_man.flip_switch) &&	// CUSTOM SECTION: Flip Switch
 		 (_last_sp_man.rattitude_switch == sp_man.rattitude_switch) &&
 		 (_last_sp_man.posctl_switch == sp_man.posctl_switch) &&
 		 (_last_sp_man.loiter_switch == sp_man.loiter_switch) &&
@@ -3036,6 +3043,23 @@ Commander::set_main_state_rc(const vehicle_status_s &status_local, bool *changed
 			print_reject_mode("AUTO HOLD");
 
 		} else {
+			return res;
+		}
+	}
+
+	/* CUSTOM SECTION: Flip switch overrides main switch */
+	if (sp_man.flip_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
+		res = main_state_transition(status_local, commander_state_s::MAIN_STATE_FLIP, status_flags, &internal_state);
+
+		if (res == TRANSITION_DENIED) {
+			print_reject_mode("FLIP");
+
+			/* fallback to stabilized if transition fails*/
+			res = main_state_transition(status_local, commander_state_s::MAIN_STATE_STAB, status_flags, &internal_state);
+		}
+
+		if (res != TRANSITION_DENIED) {
+			/* changed successfully or already in this state */
 			return res;
 		}
 	}
@@ -3514,6 +3538,20 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_ACRO:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_auto_enabled = false;
+		control_mode.flag_control_rates_enabled = true;
+		control_mode.flag_control_attitude_enabled = false;
+		control_mode.flag_control_rattitude_enabled = false;
+		control_mode.flag_control_altitude_enabled = false;
+		control_mode.flag_control_climb_rate_enabled = false;
+		control_mode.flag_control_position_enabled = false;
+		control_mode.flag_control_velocity_enabled = false;
+		control_mode.flag_control_acceleration_enabled = false;
+		control_mode.flag_control_termination_enabled = false;
+		break;
+
+	case vehicle_status_s::NAVIGATION_STATE_FLIP:	// CUSTOM SECTION: Flip state
+		control_mode.flag_control_manual_enabled = false;
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = false;
