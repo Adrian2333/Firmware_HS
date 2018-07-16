@@ -592,6 +592,8 @@ MulticopterAttitudeControl::maneuver_flip()
         FLIP_RECOVER
     } _flip_state;
 
+    _flip_state = FLIP_START;
+
 	Eulerf euler(Quatf(_v_att.q));
 	float roll = euler.phi();
 
@@ -602,9 +604,9 @@ MulticopterAttitudeControl::maneuver_flip()
             _rates_sp(0) = math::radians(400);
             _rates_sp(1) = 0;
             _rates_sp(2) = 0;
-            _thrust_sp+= _flip_thr_inc.get();
+            _thrust_sp+=_flip_thr_inc.get();
 
-            if (fabs(roll) >= 0.8f) {
+            if (roll >= math::radians(45)) {
                 _flip_state = FLIP_ROLL;
             }
         break;
@@ -616,7 +618,7 @@ MulticopterAttitudeControl::maneuver_flip()
             _rates_sp(2) = 0;
 			_thrust_sp-=_flip_thr_red.get();
 
-            if (fabs(roll) <= 0.8f && fabs(roll) > -FLIP_RECOVER) {
+            if (roll <= math::radians(45) && roll > -math::radians(90)) {
                 _flip_state = FLIP_RECOVER;
             }
         break;
