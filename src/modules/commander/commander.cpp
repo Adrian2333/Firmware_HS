@@ -3050,16 +3050,11 @@ Commander::set_main_state_rc(const vehicle_status_s &status_local, bool *changed
 	/* CUSTOM SECTION: Flip switch overrides main switch */
 	if (sp_man.flip_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
 		res = main_state_transition(status_local, commander_state_s::MAIN_STATE_FLIP, status_flags, &internal_state);
-
+		mavlink_and_console_log_info(&mavlink_log_pub, "Invoke flip by switch");
 		if (res == TRANSITION_DENIED) {
 			print_reject_mode("FLIP");
 
-			/* fallback to stabilized if transition fails*/
-			res = main_state_transition(status_local, commander_state_s::MAIN_STATE_STAB, status_flags, &internal_state);
-		}
-
-		if (res != TRANSITION_DENIED) {
-			/* changed successfully or already in this state */
+		} else {
 			return res;
 		}
 	}
@@ -3255,6 +3250,9 @@ Commander::set_main_state_rc(const vehicle_status_s &status_local, bool *changed
 			} else if (sp_man.acro_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
 				res = main_state_transition(status_local, commander_state_s::MAIN_STATE_ACRO, status_flags, &internal_state);
 
+			} else if (sp_man.flip_switch == manual_control_setpoint_s::SWITCH_POS_ON) {	//CUSTOM: Add Flip to mode slot operation
+				res = main_state_transition(status_local, commander_state_s::MAIN_STATE_FLIP, status_flags, &internal_state);
+
 			} else if (sp_man.rattitude_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
 				res = main_state_transition(status_local, commander_state_s::MAIN_STATE_RATTITUDE, status_flags, &internal_state);
 
@@ -3427,6 +3425,7 @@ set_control_mode()
 	switch (status.nav_state) {
 	case vehicle_status_s::NAVIGATION_STATE_MANUAL:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = stabilization_required();
 		control_mode.flag_control_attitude_enabled = stabilization_required();
@@ -3441,6 +3440,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_STAB:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3455,6 +3455,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_RATTITUDE:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3469,6 +3470,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_ALTCTL:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3483,6 +3485,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_POSCTL:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3510,6 +3513,7 @@ set_control_mode()
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER:
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_TAKEOFF:
 		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = true;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3524,6 +3528,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_LANDGPSFAIL:
 		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3538,6 +3543,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_ACRO:
 		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = false;
@@ -3551,9 +3557,10 @@ set_control_mode()
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_FLIP:	// CUSTOM SECTION: Flip state
-		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_manual_enabled = true;
+		control_mode.flag_control_flip_enabled = true;		// CUSTOM SECTION: This is the flip state; enable flip!
 		control_mode.flag_control_auto_enabled = false;
-		control_mode.flag_control_rates_enabled = false;
+		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = false;
 		control_mode.flag_control_rattitude_enabled = false;
 		control_mode.flag_control_altitude_enabled = false;
@@ -3567,6 +3574,7 @@ set_control_mode()
 	case vehicle_status_s::NAVIGATION_STATE_DESCEND:
 		/* TODO: check if this makes sense */
 		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = true;
 		control_mode.flag_control_rates_enabled = true;
 		control_mode.flag_control_attitude_enabled = true;
@@ -3582,6 +3590,7 @@ set_control_mode()
 	case vehicle_status_s::NAVIGATION_STATE_TERMINATION:
 		/* disable all controllers on termination */
 		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = false;
 		control_mode.flag_control_attitude_enabled = false;
@@ -3596,6 +3605,7 @@ set_control_mode()
 
 	case vehicle_status_s::NAVIGATION_STATE_OFFBOARD:
 		control_mode.flag_control_manual_enabled = false;
+		control_mode.flag_control_flip_enabled = false;		// CUSTOM SECTION: Disable flip for this state
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_offboard_enabled = true;
 

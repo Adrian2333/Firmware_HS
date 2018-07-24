@@ -580,19 +580,16 @@ MulticopterAttitudeControl::control_attitude_rates(float dt)
 	}
 }
 
+/*enum FLIP_STATE {
+    FLIP_START = 0,
+    FLIP_ROLL,
+    FLIP_RECOVER
+} _flip_state;
+
 // CUSTOM SECTION: Function to execute flip
 void
 MulticopterAttitudeControl::maneuver_flip()
 {
-	vehicle_attitude_poll();
-
-    static enum FLIP_STATE {
-        FLIP_START = 0,
-        FLIP_ROLL,
-        FLIP_RECOVER
-    } _flip_state;
-
-    _flip_state = FLIP_START;
 
 	Eulerf euler(Quatf(_v_att.q));
 	float roll = euler.phi();
@@ -624,12 +621,14 @@ MulticopterAttitudeControl::maneuver_flip()
         break;
                     
         case FLIP_RECOVER:
-
+            _rates_sp(0) = 0;
+            _rates_sp(1) = 0;
+            _rates_sp(2) = 0;
         break;
         // run at roughly 100 hz
         usleep(50000);
         }
-}
+}*/
 
 void
 MulticopterAttitudeControl::run()
@@ -669,6 +668,8 @@ MulticopterAttitudeControl::run()
 	hrt_abstime last_run = task_start;
 	float dt_accumulator = 0.f;
 	int loop_counter = 0;
+
+	//_flip_state = FLIP_START;
 
 	while (!should_exit()) {
 
@@ -732,11 +733,14 @@ MulticopterAttitudeControl::run()
 
 			/* CUSTOM SECTION: Disable attitude and rate controllers and execute the flip
 			 * maneuver function */
-			if (_v_control_mode.flag_control_flip_enabled) {
-				_v_control_mode.flag_control_attitude_enabled = false;
-				_v_control_mode.flag_control_rates_enabled = false;
+/*			if (_v_control_mode.flag_control_flip_enabled) {
 
-				maneuver_flip();
+				//maneuver_flip();
+
+				_v_rates_sp.roll = math::radians(400);//_rates_sp(0);
+				_v_rates_sp.pitch = _rates_sp(1);
+				_v_rates_sp.yaw = _rates_sp(2);
+				_v_rates_sp.thrust = _thrust_sp;
 
 				if (_v_rates_sp_pub != nullptr) {
 					orb_publish(_rates_sp_id, _v_rates_sp_pub, &_v_rates_sp);
@@ -744,8 +748,12 @@ MulticopterAttitudeControl::run()
 				} else if (_rates_sp_id) {
 					_v_rates_sp_pub = orb_advertise(_rates_sp_id, &_v_rates_sp);
 				}
-			}
 
+			} else {
+				_v_control_mode.flag_control_attitude_enabled = true;
+				_v_control_mode.flag_control_rates_enabled = true;
+			}
+*/
 			if (_v_control_mode.flag_control_attitude_enabled) {
 
 				control_attitude(dt);
@@ -768,13 +776,19 @@ MulticopterAttitudeControl::run()
 				/* attitude controller disabled, poll rates setpoint topic */
 				if (_v_control_mode.flag_control_manual_enabled) {
 					/* manual rates control - ACRO mode */
-					Vector3f man_rate_sp(
-							math::superexpo(_manual_control_sp.y, _acro_expo_rp.get(), _acro_superexpo_rp.get()),
-							math::superexpo(-_manual_control_sp.x, _acro_expo_rp.get(), _acro_superexpo_rp.get()),
-							math::superexpo(_manual_control_sp.r, _acro_expo_y.get(), _acro_superexpo_y.get()));
-					_rates_sp = man_rate_sp.emult(_acro_rate_max);
-					_thrust_sp = _manual_control_sp.z;
+					if (_v_control_mode.flag_control_flip_enabled) {
+						_rates_sp(0) = _mc_rate_max(0);
+						_rates_sp(1) = 0;
+						_rates_sp(2) = 0;
 
+					} else {
+						Vector3f man_rate_sp(
+								math::superexpo(_manual_control_sp.y, _acro_expo_rp.get(), _acro_superexpo_rp.get()),
+								math::superexpo(-_manual_control_sp.x, _acro_expo_rp.get(), _acro_superexpo_rp.get()),
+								math::superexpo(_manual_control_sp.r, _acro_expo_y.get(), _acro_superexpo_y.get()));
+						_rates_sp = man_rate_sp.emult(_acro_rate_max);
+						_thrust_sp = _manual_control_sp.z;
+					}
 					/* publish attitude rates setpoint */
 					_v_rates_sp.roll = _rates_sp(0);
 					_v_rates_sp.pitch = _rates_sp(1);
@@ -791,15 +805,18 @@ MulticopterAttitudeControl::run()
 
 				} else {
 					/* attitude controller disabled, poll rates setpoint topic */
-					vehicle_rates_setpoint_poll();
-					_rates_sp(0) = _v_rates_sp.roll;
-					_rates_sp(1) = _v_rates_sp.pitch;
-					_rates_sp(2) = _v_rates_sp.yaw;
-					_thrust_sp = _v_rates_sp.thrust;
+
+						vehicle_rates_setpoint_poll();
+						_rates_sp(0) = _v_rates_sp.roll;
+						_rates_sp(1) = _v_rates_sp.pitch;
+						_rates_sp(2) = _v_rates_sp.yaw;
+						_thrust_sp = _v_rates_sp.thrust;
 				}
 			}
+			
 
 			if (_v_control_mode.flag_control_rates_enabled) {
+				
 				control_attitude_rates(dt);
 
 				/* publish actuator controls */
