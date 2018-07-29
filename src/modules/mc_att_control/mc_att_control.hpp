@@ -118,7 +118,7 @@ private:
 	 */
 	void		control_attitude_rates(float dt);
 
-	void		maneuver_flip();
+	void		maneuver_flip(float dt);
 
 	/**
 	 * Throttle PID attenuation.
@@ -254,4 +254,3 @@ private:
 	matrix::Vector3f _acro_rate_max;	/**< max attitude rates in acro mode */
 
 };
-

@@ -3050,7 +3050,7 @@ Commander::set_main_state_rc(const vehicle_status_s &status_local, bool *changed
 	/* CUSTOM SECTION: Flip switch overrides main switch */
 	if (sp_man.flip_switch == manual_control_setpoint_s::SWITCH_POS_ON) {
 		res = main_state_transition(status_local, commander_state_s::MAIN_STATE_FLIP, status_flags, &internal_state);
-		mavlink_and_console_log_info(&mavlink_log_pub, "Invoke flip by switch");
+
 		if (res == TRANSITION_DENIED) {
 			print_reject_mode("FLIP");
 
@@ -3561,7 +3561,7 @@ set_control_mode()
 		control_mode.flag_control_flip_enabled = true;		// CUSTOM SECTION: This is the flip state; enable flip!
 		control_mode.flag_control_auto_enabled = false;
 		control_mode.flag_control_rates_enabled = true;
-		control_mode.flag_control_attitude_enabled = false;
+		control_mode.flag_control_attitude_enabled = true;
 		control_mode.flag_control_rattitude_enabled = false;
 		control_mode.flag_control_altitude_enabled = false;
 		control_mode.flag_control_climb_rate_enabled = false;
