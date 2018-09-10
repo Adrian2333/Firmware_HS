@@ -46,27 +46,24 @@
 #include "navigator.h"
 
 #include <cfloat>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 
 #include <dataman/dataman.h>
 #include <drivers/drv_hrt.h>
 #include <lib/ecl/geo/geo.h>
-#include <mathlib/mathlib.h>
+#include <lib/mathlib/mathlib.h>
 #include <px4_config.h>
 #include <px4_defines.h>
 #include <px4_posix.h>
 #include <px4_tasks.h>
 #include <systemlib/mavlink_log.h>
-#include <systemlib/systemlib.h>
-#include <uORB/topics/fw_pos_ctrl_status.h>
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/mission.h>
+#include <uORB/topics/position_controller_landing_status.h>
+#include <uORB/topics/transponder_report.h>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_command_ack.h>
 #include <uORB/topics/vehicle_status.h>
-#include <uORB/topics/transponder_report.h>
 #include <uORB/uORB.h>
 
 /**
@@ -77,6 +74,8 @@
 extern "C" __EXPORT int navigator_main(int argc, char *argv[]);
 
 #define GEOFENCE_CHECK_INTERVAL 200000
+
+using namespace time_literals;
 
 namespace navigator
 {
@@ -111,7 +110,6 @@ Navigator::Navigator() :
 	_navigation_mode_array[8] = &_land;
 	_navigation_mode_array[9] = &_precland;
 	_navigation_mode_array[10] = &_follow_target;
-
 }
 
 void
@@ -140,17 +138,6 @@ Navigator::home_position_update(bool force)
 
 	if (updated || force) {
 		orb_copy(ORB_ID(home_position), _home_pos_sub, &_home_pos);
-	}
-}
-
-void
-Navigator::fw_pos_ctrl_status_update(bool force)
-{
-	bool updated = false;
-	orb_check(_fw_pos_ctrl_status_sub, &updated);
-
-	if (updated || force) {
-		orb_copy(ORB_ID(fw_pos_ctrl_status), _fw_pos_ctrl_status_sub, &_fw_pos_ctrl_status);
 	}
 }
 
@@ -195,7 +182,7 @@ Navigator::run()
 	_global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
 	_local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
 	_gps_pos_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
-	_fw_pos_ctrl_status_sub = orb_subscribe(ORB_ID(fw_pos_ctrl_status));
+	_pos_ctrl_landing_status_sub = orb_subscribe(ORB_ID(position_controller_landing_status));
 	_vstatus_sub = orb_subscribe(ORB_ID(vehicle_status));
 	_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
 	_home_pos_sub = orb_subscribe(ORB_ID(home_position));
@@ -211,7 +198,6 @@ Navigator::run()
 	local_position_update();
 	gps_position_update();
 	home_position_update(true);
-	fw_pos_ctrl_status_update(true);
 	params_update();
 
 	/* wakeup source(s) */
@@ -295,11 +281,7 @@ Navigator::run()
 		}
 
 		/* navigation capabilities updated */
-		orb_check(_fw_pos_ctrl_status_sub, &updated);
-
-		if (updated) {
-			fw_pos_ctrl_status_update();
-		}
+		_position_controller_status_sub.update();
 
 		/* home position updated */
 		orb_check(_home_pos_sub, &updated);
@@ -409,8 +391,8 @@ Navigator::run()
 
 				} else {
 					// If one of them is non-finite, reset both
-					rep->current.lat = NAN;
-					rep->current.lon = NAN;
+					rep->current.lat = (double)NAN;
+					rep->current.lon = (double)NAN;
 				}
 
 				rep->current.alt = cmd.param7;
@@ -559,7 +541,10 @@ Navigator::run()
 		switch (_vstatus.nav_state) {
 		case vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION:
 			_pos_sp_triplet_published_invalid_once = false;
+
+			_mission.set_execution_mode(mission_result_s::MISSION_EXECUTION_MODE_NORMAL);
 			navigation_mode_new = &_mission;
+
 			break;
 
 		case vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER:
@@ -572,18 +557,96 @@ Navigator::run()
 			navigation_mode_new = &_rcLoss;
 			break;
 
-		case vehicle_status_s::NAVIGATION_STATE_AUTO_RTL:
-			_pos_sp_triplet_published_invalid_once = false;
+		case vehicle_status_s::NAVIGATION_STATE_AUTO_RTL: {
+				_pos_sp_triplet_published_invalid_once = false;
 
-			// if RTL is set to use a mission landing and mission has a planned landing, then use MISSION
-			if (mission_landing_required() && on_mission_landing()) {
-				navigation_mode_new = &_mission;
+				const bool rtl_activated = _previous_nav_state != vehicle_status_s::NAVIGATION_STATE_AUTO_RTL;
 
-			} else {
-				navigation_mode_new = &_rtl;
+				switch (rtl_type()) {
+				case RTL::RTL_LAND:
+					if (rtl_activated) {
+						mavlink_and_console_log_info(get_mavlink_log_pub(), "RTL LAND activated");
+					}
+
+					// if RTL is set to use a mission landing and mission has a planned landing, then use MISSION to fly there directly
+					if (on_mission_landing() && !get_land_detected()->landed) {
+						_mission.set_execution_mode(mission_result_s::MISSION_EXECUTION_MODE_FAST_FORWARD);
+						navigation_mode_new = &_mission;
+
+					} else {
+						navigation_mode_new = &_rtl;
+					}
+
+					break;
+
+				case RTL::RTL_MISSION:
+					if (_mission.get_land_start_available() && !get_land_detected()->landed) {
+						// the mission contains a landing spot
+						_mission.set_execution_mode(mission_result_s::MISSION_EXECUTION_MODE_FAST_FORWARD);
+
+						if (_navigation_mode != &_mission) {
+							if (_navigation_mode == nullptr) {
+								// switching from an manual mode, go to landing if not already landing
+								if (!on_mission_landing()) {
+									start_mission_landing();
+								}
+
+							} else {
+								// switching from an auto mode, continue the mission from the closest item
+								_mission.set_closest_item_as_current();
+							}
+						}
+
+						if (rtl_activated) {
+							mavlink_and_console_log_info(get_mavlink_log_pub(), "RTL Mission activated, continue mission");
+						}
+
+						navigation_mode_new = &_mission;
+
+					} else {
+						// fly the mission in reverse if switching from a non-manual mode
+						_mission.set_execution_mode(mission_result_s::MISSION_EXECUTION_MODE_REVERSE);
+
+						if ((_navigation_mode != nullptr && (_navigation_mode != &_rtl || _mission.get_mission_changed())) &&
+						    (! _mission.get_mission_finished()) &&
+						    (!get_land_detected()->landed)) {
+							// determine the closest mission item if switching from a non-mission mode, and we are either not already
+							// mission mode or the mission waypoints changed.
+							// The seconds condition is required so that when no mission was uploaded and one is available the closest
+							// mission item is determined and also that if the user changes the active mission index while rtl is active
+							// always that waypoint is tracked first.
+							if ((_navigation_mode != &_mission) && (rtl_activated || _mission.get_mission_waypoints_changed())) {
+								_mission.set_closest_item_as_current();
+							}
+
+							if (rtl_activated) {
+								mavlink_and_console_log_info(get_mavlink_log_pub(), "RTL Mission activated, fly mission in reverse");
+							}
+
+							navigation_mode_new = &_mission;
+
+						} else {
+							if (rtl_activated) {
+								mavlink_and_console_log_info(get_mavlink_log_pub(), "RTL Mission activated, fly to home");
+							}
+
+							navigation_mode_new = &_rtl;
+						}
+					}
+
+					break;
+
+				default:
+					if (rtl_activated) {
+						mavlink_and_console_log_info(get_mavlink_log_pub(), "RTL HOME activated");
+					}
+
+					navigation_mode_new = &_rtl;
+					break;
+				}
+
+				break;
 			}
-
-			break;
 
 		case vehicle_status_s::NAVIGATION_STATE_AUTO_TAKEOFF:
 			_pos_sp_triplet_published_invalid_once = false;
@@ -640,6 +703,9 @@ Navigator::run()
 			break;
 		}
 
+		// update the vehicle status
+		_previous_nav_state = _vstatus.nav_state;
+
 		/* we have a new navigation mode: reset triplet */
 		if (_navigation_mode != navigation_mode_new) {
 			// We don't reset the triplet if we just did an auto-takeoff and are now
@@ -680,14 +746,11 @@ Navigator::run()
 		}
 
 		if (_pos_sp_triplet_updated) {
-			_pos_sp_triplet.timestamp = hrt_absolute_time();
 			publish_position_setpoint_triplet();
-			_pos_sp_triplet_updated = false;
 		}
 
 		if (_mission_result_updated) {
 			publish_mission_result();
-			_mission_result_updated = false;
 		}
 
 		perf_end(_loop_perf);
@@ -696,7 +759,7 @@ Navigator::run()
 	orb_unsubscribe(_global_pos_sub);
 	orb_unsubscribe(_local_pos_sub);
 	orb_unsubscribe(_gps_pos_sub);
-	orb_unsubscribe(_fw_pos_ctrl_status_sub);
+	orb_unsubscribe(_pos_ctrl_landing_status_sub);
 	orb_unsubscribe(_vstatus_sub);
 	orb_unsubscribe(_land_detected_sub);
 	orb_unsubscribe(_home_pos_sub);
@@ -745,10 +808,12 @@ Navigator::print_status()
 void
 Navigator::publish_position_setpoint_triplet()
 {
-	/* do not publish an empty triplet */
+	// do not publish an invalid setpoint
 	if (!_pos_sp_triplet.current.valid) {
 		return;
 	}
+
+	_pos_sp_triplet.timestamp = hrt_absolute_time();
 
 	/* lazily publish the position setpoint triplet only once available */
 	if (_pos_sp_triplet_pub != nullptr) {
@@ -757,6 +822,8 @@ Navigator::publish_position_setpoint_triplet()
 	} else {
 		_pos_sp_triplet_pub = orb_advertise(ORB_ID(position_setpoint_triplet), &_pos_sp_triplet);
 	}
+
+	_pos_sp_triplet_updated = false;
 }
 
 float
@@ -772,7 +839,7 @@ Navigator::get_acceptance_radius()
 }
 
 float
-Navigator::get_altitude_acceptance_radius()
+Navigator::get_default_altitude_acceptance_radius()
 {
 	if (!get_vstatus()->is_rotary_wing) {
 		return _param_fw_alt_acceptance_radius.get();
@@ -780,6 +847,21 @@ Navigator::get_altitude_acceptance_radius()
 	} else {
 		return _param_mc_alt_acceptance_radius.get();
 	}
+}
+
+float
+Navigator::get_altitude_acceptance_radius()
+{
+	if (!get_vstatus()->is_rotary_wing) {
+		const position_setpoint_s &next_sp = get_position_setpoint_triplet()->next;
+
+		if (next_sp.type == position_setpoint_s::SETPOINT_TYPE_LAND && next_sp.valid) {
+			// Use separate (tighter) altitude acceptance for clean altitude starting point before landing
+			return _param_fw_alt_lnd_acceptance_radius.get();
+		}
+	}
+
+	return get_default_altitude_acceptance_radius();
 }
 
 float
@@ -852,10 +934,11 @@ Navigator::get_acceptance_radius(float mission_item_radius)
 	// when in fixed wing mode
 	// this might need locking against a commanded transition
 	// so that a stale _vstatus doesn't trigger an accepted mission item.
-	if (!_vstatus.is_rotary_wing && !_vstatus.in_transition_mode) {
-		if ((hrt_elapsed_time(&_fw_pos_ctrl_status.timestamp) < 5000000) && (_fw_pos_ctrl_status.turn_distance > radius)) {
-			radius = _fw_pos_ctrl_status.turn_distance;
-		}
+
+	const position_controller_status_s &pos_ctrl_status = _position_controller_status_sub.get();
+
+	if ((pos_ctrl_status.timestamp > _pos_sp_triplet.timestamp) && pos_ctrl_status.acceptance_radius > radius) {
+		radius = pos_ctrl_status.acceptance_radius;
 	}
 
 	return radius;
@@ -885,7 +968,7 @@ void Navigator::fake_traffic(const char *callsign, float distance, float directi
 
 	transponder_report_s tr = {};
 	tr.timestamp = hrt_absolute_time();
-	tr.ICAO_address = 1234;
+	tr.icao_address = 1234;
 	tr.lat = lat; // Latitude, expressed as degrees
 	tr.lon = lon; // Longitude, expressed as degrees
 	tr.altitude_type = 0;
@@ -1017,15 +1100,24 @@ void Navigator::check_traffic()
 bool
 Navigator::abort_landing()
 {
+	// only abort if currently landing and position controller status updated
 	bool should_abort = false;
 
-	if (!_vstatus.is_rotary_wing && !_vstatus.in_transition_mode) {
-		if (hrt_elapsed_time(&_fw_pos_ctrl_status.timestamp) < 1000000) {
+	if (_pos_sp_triplet.current.valid
+	    && _pos_sp_triplet.current.type == position_setpoint_s::SETPOINT_TYPE_LAND) {
 
-			if (get_position_setpoint_triplet()->current.valid
-			    && get_position_setpoint_triplet()->current.type == position_setpoint_s::SETPOINT_TYPE_LAND) {
+		bool updated = false;
 
-				should_abort = _fw_pos_ctrl_status.abort_landing;
+		orb_check(_pos_ctrl_landing_status_sub, &updated);
+
+		if (updated) {
+			position_controller_landing_status_s landing_status = {};
+
+			// landing status from position controller must be newer than navigator's last position setpoint
+			if (orb_copy(ORB_ID(position_controller_landing_status), _pos_ctrl_landing_status_sub, &landing_status) == PX4_OK) {
+				if (landing_status.timestamp > _pos_sp_triplet.timestamp) {
+					should_abort = landing_status.abort_landing;
+				}
 			}
 		}
 	}
@@ -1117,6 +1209,8 @@ Navigator::publish_mission_result()
 	_mission_result.item_do_jump_changed = false;
 	_mission_result.item_changed_index = 0;
 	_mission_result.item_do_jump_remaining = 0;
+
+	_mission_result_updated = false;
 }
 
 void
