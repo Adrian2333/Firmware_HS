@@ -481,6 +481,7 @@ PARAM_DEFINE_FLOAT(MC_FLIP_THR_RED, 0.24f);
  * @increment 0.01
  * @group Multicopter Attitude Control
 */
+
 PARAM_DEFINE_FLOAT(MC_RATT_TH, 0.8f);
 
 /**

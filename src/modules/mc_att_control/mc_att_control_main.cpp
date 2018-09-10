@@ -616,6 +616,8 @@ MulticopterAttitudeControl::maneuver_flip(float dt)
     	case FLIP_INIT:
             _v_control_mode.flag_control_attitude_enabled = false;
             _v_control_mode.flag_control_manual_enabled = false;
+            _thrust_sp+=_flip_thr_inc.get();
+            
             _flip_state = FLIP_START;
             break;
 
@@ -643,6 +645,7 @@ MulticopterAttitudeControl::maneuver_flip(float dt)
         break;
                     
         case FLIP_RECOVER:
+        	_thrust_sp+=_flip_thr_inc.get();
         	_v_control_mode.flag_control_manual_enabled = true;
 
         	switch (_mode) {
